@@ -1,17 +1,18 @@
-import { useState } from "react";
 import { motion } from "motion/react";
 import { 
-  ExternalLink, 
   ArrowRight, 
-  ShoppingBag, 
-  Sparkles, 
   ChevronRight,
   TrendingUp
 } from "lucide-react";
 import { PORTFOLIO_DATA } from "../data";
 
+const PROJECT_IMAGES: Record<string, string> = {
+  "proj-cutiebox": "/cutiebox-WEbpreview-img.png",
+  "proj-maisonrose": "/maison-rose-web.png",
+  "proj-shrikha": "/shrikha-organics-webPReview.png",
+};
+
 export default function Projects() {
-  const [hoveredProj, setHoveredProj] = useState<string | null>(null);
 
   return (
     <section 
@@ -49,21 +50,6 @@ export default function Projects() {
         {/* Portfolio Layout (3 Column Cinematic Cards) */}
         <div id="projects-grid" className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           {PORTFOLIO_DATA.map((project, idx) => {
-            const isHovered = hoveredProj === project.id;
-            
-            // Custom CSS background classes for visual cards representing e-commerce themes
-            const bgThemes = [
-              "bg-linear-to-tr from-pink-500/10 via-purple-500/10 to-violet-500/10",
-              "bg-linear-to-tr from-rose-500/10 via-slate-500/10 to-sky-500/10",
-              "bg-linear-to-tr from-emerald-500/10 via-teal-500/10 to-amber-500/10"
-            ];
-
-            const ringColors = [
-              "border-purple-200/50",
-              "border-sky-200/50",
-              "border-emerald-200/50"
-            ];
-
             return (
               <motion.div
                 id={`project-card-${project.id}`}
@@ -72,51 +58,19 @@ export default function Projects() {
                 whileInView={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.7, ease: [0.16, 1, 0.3, 1], delay: idx * 0.15 }}
                 viewport={{ once: true, margin: "-100px" }}
-                onMouseEnter={() => setHoveredProj(project.id)}
-                onMouseLeave={() => setHoveredProj(null)}
                 className="group relative bg-white rounded-3xl border border-slate-200/50 overflow-hidden shadow-[0_4px_30px_rgba(0,0,0,0.01)] hover:shadow-[0_24px_48px_rgba(15,23,42,0.06)] transition-all duration-500 flex flex-col cursor-pointer"
               >
                 
-                {/* Image Placeholder Frame / Artistic representation of e-commerce storefront */}
-                <div className={`aspect-[1.45] w-full ${bgThemes[idx]} p-6 relative flex items-center justify-center border-b border-slate-100 overflow-hidden`}>
-                  
-                  {/* Subtle Grid overlay */}
-                  <div className="absolute inset-0 bg-[linear-gradient(to_right,#8080800a_1px,transparent_1px),linear-gradient(to_bottom,#8080800a_1px,transparent_1px)] bg-[size:14px_24px] pointer-events-none" />
-
-                  {/* High fidelity device container */}
-                  <div className={`w-[90%] h-[90%] bg-white rounded-t-2xl border-t border-x ${ringColors[idx]} shadow-2xl p-4 flex flex-col justify-between transition-transform duration-500 group-hover:scale-[1.03] translate-y-4`}>
-                    
-                    {/* Header bar */}
-                    <div className="flex items-center justify-between border-b border-slate-100 pb-2 mb-2">
-                      <div className="flex items-center gap-1.5">
-                        <span className="w-1.5 h-1.5 rounded-full bg-slate-200" />
-                        <span className="w-1.5 h-1.5 rounded-full bg-slate-200" />
-                        <span className="font-mono text-[8px] text-slate-400">
-                          {project.url.replace("https://", "")}
-                        </span>
-                      </div>
-                      <ExternalLink className="w-2.5 h-2.5 text-slate-300" />
-                    </div>
-
-                    {/* Content preview */}
-                    <div className="flex-1 flex flex-col justify-center text-center items-center">
-                      <ShoppingBag className="w-8 h-8 text-slate-300 mb-2 group-hover:rotate-6 transition-transform" />
-                      <span className="font-mono text-[10px] tracking-widest uppercase font-extrabold text-slate-400">
-                        {project.category}
-                      </span>
-                      <h4 className="font-sans text-sm font-black text-slate-800 mt-1">
-                        {project.title} Storefront
-                      </h4>
-                    </div>
-
-                    {/* Bottom visual metrics */}
-                    <div className="border-t border-slate-50 pt-2 flex justify-between items-center text-[9px] font-mono text-slate-400">
-                      <span>CLIENT SATISFACTION: 100%</span>
-                      <span>ACTIVE SSL</span>
-                    </div>
-
-                  </div>
-
+                {/* Project Screenshot */}
+                <div className="aspect-[1.45] w-full relative overflow-hidden bg-slate-100">
+                  <img
+                    src={PROJECT_IMAGES[project.id]}
+                    alt={`${project.title} - ${project.category} preview`}
+                    className="w-full h-full object-cover object-top transition-transform duration-500 group-hover:scale-105"
+                    loading="lazy"
+                  />
+                  {/* Subtle overlay on hover */}
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/20 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
                 </div>
 
                 {/* Content block */}
