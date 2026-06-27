@@ -11,14 +11,14 @@ export default function Services() {
 
     // Trigger Section entry
     const revertEntrance = animateServicesEntrance(
-      "#services-editorial-section",
+      "#services",
       "#services-editorial-header",
       "#desktop-carousel-viewport"
     );
 
     // Trigger subtle scrolling 3D space parallax
     const revertParallax = setupScrollParallax3D(
-      "#services-editorial-section",
+      "#services",
       "#desktop-carousel-viewport",
       "#ambient-radial-glow-shapes"
     );
@@ -31,7 +31,7 @@ export default function Services() {
 
   return (
     <section 
-      id="services-editorial-section" 
+      id="services" 
       ref={sectionRef}
       className="relative py-28 bg-[#FFFFFF] overflow-hidden border-b border-slate-100 select-none"
     >
