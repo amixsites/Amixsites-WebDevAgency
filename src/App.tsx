@@ -11,6 +11,7 @@ import Projects from "./components/Projects";
 import Process from "./components/Process";
 import Trust from "./components/Trust";
 import Contact from "./components/Contact";
+import FloatingContact from "./components/FloatingContact";
 
 export default function App() {
   return (
@@ -41,6 +42,9 @@ export default function App() {
         {/* Direct WhatsApp connection & Custom proposal builder */}
         <Contact />
       </main>
+
+      {/* Floating WhatsApp & Call Widget (outside page flow) */}
+      <FloatingContact />
 
     </div>
   );
