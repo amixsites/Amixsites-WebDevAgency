@@ -143,7 +143,11 @@ export default function Hero() {
  
             <a
               id="hero-work-cta"
-              href="#services"
+              href="#services-editorial-section"
+              onClick={(e) => {
+                e.preventDefault();
+                document.getElementById("services-editorial-section")?.scrollIntoView({ behavior: "smooth" });
+              }}
               className="inline-flex items-center justify-center gap-2 px-8 py-4 rounded-full bg-white hover:bg-slate-50 border border-slate-200 text-slate-800 font-sans font-semibold shadow-xs hover:border-slate-300 transition-all duration-200"
             >
               See Solutions
