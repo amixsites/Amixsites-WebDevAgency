@@ -1,0 +1,6 @@
+{
+  "name": "Amix Software Agency",
+  "description": "Premium software development agency website featuring high-performance engineering, beautiful WebGL 3D visualizations, and scroll-driven GSAP interfaces.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

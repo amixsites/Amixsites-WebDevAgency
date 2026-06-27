@@ -1,0 +1,85 @@
+/* Services3DCarousel.css */
+
+.editorial-stage-wrapper {
+  perspective: 1400px;
+  transform-style: preserve-3d;
+  will-change: transform;
+}
+
+.carousel-stage-container {
+  transform-style: preserve-3d;
+  will-change: transform;
+}
+
+.editorial-card-3d {
+  transform-style: preserve-3d;
+  backface-visibility: hidden;
+  will-change: transform, opacity, filter;
+}
+
+/* Float continuous idle animations for center and side cards */
+@keyframes float-center {
+  0%, 100% {
+    transform: translateY(0) rotateY(0deg) rotateX(0deg);
+  }
+  50% {
+    transform: translateY(-12px) rotateY(0.6deg) rotateX(-0.4deg);
+  }
+}
+
+@keyframes float-side-left {
+  0%, 100% {
+    transform: translateY(0) rotateY(0deg) rotateX(0deg);
+  }
+  50% {
+    transform: translateY(-6px) rotateY(-0.8deg) rotateX(0.4deg);
+  }
+}
+
+@keyframes float-side-right {
+  0%, 100% {
+    transform: translateY(0) rotateY(0deg) rotateX(0deg);
+  }
+  50% {
+    transform: translateY(-8px) rotateY(0.4deg) rotateX(-0.3deg);
+  }
+}
+
+.animate-float-center {
+  animation: float-center 5.2s ease-in-out infinite;
+}
+
+.animate-float-side-left {
+  animation: float-side-left 6.5s ease-in-out infinite;
+}
+
+.animate-float-side-right {
+  animation: float-side-right 5.8s ease-in-out infinite;
+}
+
+/* Glass reflection layer */
+.premium-glass-reflection {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    115deg,
+    transparent 0%,
+    transparent 30%,
+    rgba(255, 255, 255, 0.22) 48%,
+    rgba(255, 255, 255, 0.32) 50%,
+    rgba(255, 255, 255, 0.22) 52%,
+    transparent 70%,
+    transparent 100%
+  );
+  transform: translateZ(20px);
+  pointer-events: none;
+  mix-blend-mode: overlay;
+}
+
+.cursor-grab {
+  cursor: grab;
+}
+
+.cursor-grabbing {
+  cursor: grabbing;
+}
