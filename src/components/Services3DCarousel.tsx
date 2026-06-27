@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, MouseEvent } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { motion } from "motion/react";
 import { 
   ArrowRight,
@@ -86,11 +86,45 @@ export default function Services3DCarousel() {
 
   const stageRef = useRef<HTMLDivElement>(null);
   const pointerStart = useRef<{ x: number; y: number; time: number } | null>(null);
-  const pointerCurrent = useRef<{ x: number; y: number } | null>(null);
   const isDragging = useRef(false);
-  const interactionTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const directionLocked = useRef<"horizontal" | "vertical" | null>(null);
+  const interactionTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Dynamic window sizing for perfect mobile/desktop responsiveness
+  // Intersection Observer: track if section is 70%+ visible
+  const [sectionActive, setSectionActive] = useState(false);
+  const [scrollIdle, setScrollIdle] = useState(true);
+  const scrollIdleTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Observe the services section for 70% visibility
+  useEffect(() => {
+    const section = document.getElementById("services");
+    if (!section) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => setSectionActive(entry.isIntersecting),
+      { threshold: 0.7 }
+    );
+    observer.observe(section);
+    return () => observer.disconnect();
+  }, []);
+
+  // Track scroll idle state (idle after 300ms of no scroll)
+  useEffect(() => {
+    const handleScroll = () => {
+      setScrollIdle(false);
+      if (scrollIdleTimer.current) clearTimeout(scrollIdleTimer.current);
+      scrollIdleTimer.current = setTimeout(() => setScrollIdle(true), 300);
+    };
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    return () => {
+      window.removeEventListener("scroll", handleScroll);
+      if (scrollIdleTimer.current) clearTimeout(scrollIdleTimer.current);
+    };
+  }, []);
+
+  // Whether manual drag interaction is allowed
+  const canInteract = sectionActive && scrollIdle;
+
+  // Dynamic window sizing
   useEffect(() => {
     if (typeof window !== "undefined") {
       setWindowWidth(window.innerWidth);
@@ -100,75 +134,82 @@ export default function Services3DCarousel() {
     }
   }, []);
 
-  // Continuous Autoplay logic
+  // Autoplay: rotates every 2.5s, pauses only during active drag
   useEffect(() => {
     if (isInteracting) return;
-
     const timer = setInterval(() => {
       setActiveIndex((prev) => (prev + 1) % SERVICES_DATA.length);
-    }, 4000);
-
+    }, 2500);
     return () => clearInterval(timer);
   }, [isInteracting]);
 
   const handlePrev = () => {
     setActiveIndex((prev) => (prev - 1 + SERVICES_DATA.length) % SERVICES_DATA.length);
   };
-
   const handleNext = () => {
     setActiveIndex((prev) => (prev + 1) % SERVICES_DATA.length);
   };
 
-  // responsive layout parameters
+  // Responsive layout parameters
   const isDesktop = windowWidth >= 1024;
   const cardWidth = isDesktop ? 420 : Math.min(350, windowWidth * 0.78);
   const cardHeight = isDesktop ? 550 : Math.min(460, windowWidth * 1.15);
   const gapMultiplier = isDesktop ? 380 : windowWidth * 0.62;
 
-  // Track Pointer Down (mouse & touch combined)
+  // Pointer Down — only start tracking if interaction allowed
   const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
-    // Ignore interactive components within cards like links or buttons
-    if ((e.target as HTMLElement).closest("a") || (e.target as HTMLElement).closest("button")) {
-      return;
-    }
+    if ((e.target as HTMLElement).closest("a") || (e.target as HTMLElement).closest("button")) return;
+    if (!canInteract) return;
 
     pointerStart.current = { x: e.clientX, y: e.clientY, time: Date.now() };
-    pointerCurrent.current = { x: e.clientX, y: e.clientY };
     isDragging.current = false;
-    setIsInteracting(true);
-
-    if (interactionTimeoutRef.current) {
-      clearTimeout(interactionTimeoutRef.current);
-      interactionTimeoutRef.current = null;
-    }
+    directionLocked.current = null;
   };
 
-  // Track Pointer Move
+  // Pointer Move — determine direction first, only capture horizontal
   const handlePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
     if (!pointerStart.current) return;
-    pointerCurrent.current = { x: e.clientX, y: e.clientY };
+    if (!canInteract) {
+      pointerStart.current = null;
+      return;
+    }
 
     const dx = e.clientX - pointerStart.current.x;
     const dy = e.clientY - pointerStart.current.y;
 
-    // Detect drag threshold before setting pointer capture to enable clicking of cards without drag capture interference
-    if (!isDragging.current && (Math.abs(dx) > 10 || Math.abs(dy) > 10)) {
-      isDragging.current = true;
-      e.currentTarget.setPointerCapture(e.pointerId);
+    // Lock direction after 10px movement
+    if (!directionLocked.current && (Math.abs(dx) > 10 || Math.abs(dy) > 10)) {
+      if (Math.abs(dy) > Math.abs(dx)) {
+        // Vertical — release immediately, let page scroll
+        directionLocked.current = "vertical";
+        pointerStart.current = null;
+        return;
+      } else {
+        // Horizontal — capture for carousel
+        directionLocked.current = "horizontal";
+        isDragging.current = true;
+        setIsInteracting(true);
+        if (interactionTimeoutRef.current) {
+          clearTimeout(interactionTimeoutRef.current);
+          interactionTimeoutRef.current = null;
+        }
+        e.currentTarget.setPointerCapture(e.pointerId);
+      }
     }
+
+    if (directionLocked.current === "vertical") return;
 
     if (isDragging.current) {
       setDragOffset(dx);
     }
 
-    // Active Card 3D Tilt calculation & Stage Perspective Tilt
-    if (isDesktop && stageRef.current) {
+    // Desktop tilt effects (only on hover, no capture needed)
+    if (isDesktop && stageRef.current && !isDragging.current) {
       const rect = stageRef.current.getBoundingClientRect();
       const sx = (e.clientX - rect.left) / rect.width - 0.5;
       const sy = (e.clientY - rect.top) / rect.height - 0.5;
       setStageTilt({ x: sx * 10, y: -sy * 6 });
 
-      // If hovering near center, tilt active card
       const activeCardId = SERVICES_DATA[activeIndex].id;
       const activeCardElement = document.getElementById(`card-${activeCardId}`);
       if (activeCardElement) {
@@ -176,7 +217,6 @@ export default function Services3DCarousel() {
         const cx = e.clientX - cardRect.left;
         const cy = e.clientY - cardRect.top;
         setMouseRelPos({ x: cx, y: cy });
-
         const normX = (cx / cardRect.width) - 0.5;
         const normY = (cy / cardRect.height) - 0.5;
         setActiveCardTilt({ x: normX * 16, y: -normY * 10 });
@@ -184,159 +224,103 @@ export default function Services3DCarousel() {
     }
   };
 
-  // Track Pointer Up
+  // Pointer Up — resolve swipe or click
   const handlePointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
-    if (!pointerStart.current) return;
-    
+    if (!pointerStart.current && !isDragging.current) return;
+
     if (isDragging.current) {
-      e.currentTarget.releasePointerCapture(e.pointerId);
+      try { e.currentTarget.releasePointerCapture(e.pointerId); } catch {}
     }
 
-    const dx = e.clientX - pointerStart.current.x;
+    const startPos = pointerStart.current;
     const wasDragging = isDragging.current;
-    const dt = Date.now() - pointerStart.current.time;
 
     pointerStart.current = null;
-    pointerCurrent.current = null;
     isDragging.current = false;
+    directionLocked.current = null;
     setDragOffset(0);
 
-    if (wasDragging) {
-      // Calculate momentum-based swipe velocity
-      const velocity = dx / (dt || 1); // px/ms
+    if (wasDragging && startPos) {
+      const dx = e.clientX - startPos.x;
+      const dt = Date.now() - startPos.time;
+      const velocity = dx / (dt || 1);
       const swipeThreshold = isDesktop ? 80 : windowWidth * 0.12;
 
       if (Math.abs(velocity) > 0.4) {
-        if (dx < 0) {
-          handleNext();
-        } else {
-          handlePrev();
-        }
-      } else {
-        if (dx < -swipeThreshold) {
-          handleNext();
-        } else if (dx > swipeThreshold) {
-          handlePrev();
-        }
+        dx < 0 ? handleNext() : handlePrev();
+      } else if (dx < -swipeThreshold) {
+        handleNext();
+      } else if (dx > swipeThreshold) {
+        handlePrev();
       }
     } else {
-      // Direct click fallback using elementFromPoint to perfectly bypass pointer-capture boundaries
+      // Click on non-active card
       const elem = document.elementFromPoint(e.clientX, e.clientY);
       const clickedCard = elem?.closest("[data-card-index]");
       if (clickedCard) {
         const idx = parseInt(clickedCard.getAttribute("data-card-index") || "", 10);
-        if (!isNaN(idx) && idx !== activeIndex) {
-          setActiveIndex(idx);
-        }
+        if (!isNaN(idx) && idx !== activeIndex) setActiveIndex(idx);
       }
     }
 
-    // Gentle delay before auto-play resumes
+    // Resume autoplay after 2 seconds
     if (interactionTimeoutRef.current) clearTimeout(interactionTimeoutRef.current);
-    interactionTimeoutRef.current = setTimeout(() => {
-      setIsInteracting(false);
-    }, 4000);
-  };
-
-  const handleMouseEnterStage = () => {
-    if (isDesktop) {
-      setIsInteracting(true);
-    }
+    interactionTimeoutRef.current = setTimeout(() => setIsInteracting(false), 2000);
   };
 
   const handleMouseLeaveStage = () => {
     if (isDesktop) {
-      setIsInteracting(false);
       setStageTilt({ x: 0, y: 0 });
       setActiveCardTilt({ x: 0, y: 0 });
     }
   };
 
-  // Math-based 3D coordinate interpolation for smooth interactive transitions
+  // 3D coordinate interpolation
   const getCardTransforms = (vOffset: number) => {
     const absOffset = Math.abs(vOffset);
 
-    // Dynamic Opacity scaling (Active: 1.0, Prev/Next: 0.75, Far: 0.3)
     let opacity = 1;
-    if (absOffset <= 1) {
-      opacity = 1 - absOffset * 0.25; // 1.0 -> 0.75
-    } else if (absOffset <= 2) {
-      opacity = 0.75 - (absOffset - 1) * 0.45; // 0.75 -> 0.30
-    } else {
-      opacity = Math.max(0, 0.30 - (absOffset - 2) * 0.30); // 0.30 -> 0
-    }
+    if (absOffset <= 1) opacity = 1 - absOffset * 0.25;
+    else if (absOffset <= 2) opacity = 0.75 - (absOffset - 1) * 0.45;
+    else opacity = Math.max(0, 0.30 - (absOffset - 2) * 0.30);
 
-    // Dynamic scale scaling (Active: 1.0, Prev/Next: 0.82, Far: 0.65)
     let scale = 1;
-    if (absOffset <= 1) {
-      scale = 1 - absOffset * 0.18; // 1.0 -> 0.82
-    } else if (absOffset <= 2) {
-      scale = 0.82 - (absOffset - 1) * 0.15; // 0.82 -> 0.67
-    } else {
-      scale = Math.max(0.45, 0.67 - (absOffset - 2) * 0.15); // 0.67 -> 0.52
-    }
+    if (absOffset <= 1) scale = 1 - absOffset * 0.18;
+    else if (absOffset <= 2) scale = 0.82 - (absOffset - 1) * 0.15;
+    else scale = Math.max(0.45, 0.67 - (absOffset - 2) * 0.15);
 
-    // Dynamic translateZ depth scaling (Active: 150, Prev/Next: -100, Far: -300)
     let translateZ = 150;
-    if (absOffset <= 1) {
-      translateZ = 150 - absOffset * 250; // 150 -> -100
-    } else if (absOffset <= 2) {
-      translateZ = -100 - (absOffset - 1) * 200; // -100 -> -300
-    } else {
-      translateZ = -300 - (absOffset - 2) * 150; // -300 -> -450
-    }
+    if (absOffset <= 1) translateZ = 150 - absOffset * 250;
+    else if (absOffset <= 2) translateZ = -100 - (absOffset - 1) * 200;
+    else translateZ = -300 - (absOffset - 2) * 150;
 
-    // rotateY 3D angle scaling based on side (Active: 0, Prev/Next: 35 degrees)
     let rotateY = 0;
     if (vOffset < 0) {
-      if (vOffset >= -1) {
-        rotateY = Math.abs(vOffset) * 35; // facing inward
-      } else if (vOffset >= -2) {
-        rotateY = 35 + (Math.abs(vOffset) - 1) * 10;
-      } else {
-        rotateY = 45 + (Math.abs(vOffset) - 2) * 10;
-      }
+      if (vOffset >= -1) rotateY = Math.abs(vOffset) * 35;
+      else if (vOffset >= -2) rotateY = 35 + (Math.abs(vOffset) - 1) * 10;
+      else rotateY = 45 + (Math.abs(vOffset) - 2) * 10;
     } else if (vOffset > 0) {
-      if (vOffset <= 1) {
-        rotateY = -vOffset * 35; // facing inward
-      } else if (vOffset <= 2) {
-        rotateY = -35 - (vOffset - 1) * 10;
-      } else {
-        rotateY = -45 - (vOffset - 2) * 10;
-      }
+      if (vOffset <= 1) rotateY = -vOffset * 35;
+      else if (vOffset <= 2) rotateY = -35 - (vOffset - 1) * 10;
+      else rotateY = -45 - (vOffset - 2) * 10;
     }
 
-    // translateX lateral spacing
     let translateX = 0;
     if (vOffset < 0) {
-      if (vOffset >= -1) {
-        translateX = vOffset * gapMultiplier;
-      } else if (vOffset >= -2) {
-        translateX = -gapMultiplier + (vOffset + 1) * (gapMultiplier * 0.75);
-      } else {
-        translateX = -gapMultiplier * 1.75 + (vOffset + 2) * (gapMultiplier * 0.4);
-      }
+      if (vOffset >= -1) translateX = vOffset * gapMultiplier;
+      else if (vOffset >= -2) translateX = -gapMultiplier + (vOffset + 1) * (gapMultiplier * 0.75);
+      else translateX = -gapMultiplier * 1.75 + (vOffset + 2) * (gapMultiplier * 0.4);
     } else if (vOffset > 0) {
-      if (vOffset <= 1) {
-        translateX = vOffset * gapMultiplier;
-      } else if (vOffset <= 2) {
-        translateX = gapMultiplier + (vOffset - 1) * (gapMultiplier * 0.75);
-      } else {
-        translateX = gapMultiplier * 1.75 + (vOffset - 2) * (gapMultiplier * 0.4);
-      }
+      if (vOffset <= 1) translateX = vOffset * gapMultiplier;
+      else if (vOffset <= 2) translateX = gapMultiplier + (vOffset - 1) * (gapMultiplier * 0.75);
+      else translateX = gapMultiplier * 1.75 + (vOffset - 2) * (gapMultiplier * 0.4);
     }
 
-    // Depth Blur filtering (Active: 0px, Prev/Next: 2px, Far: 6px)
     let blur = 0;
-    if (absOffset <= 1) {
-      blur = absOffset * 2;
-    } else if (absOffset <= 2) {
-      blur = 2 + (absOffset - 1) * 4;
-    } else {
-      blur = 6 + (absOffset - 2) * 2;
-    }
+    if (absOffset <= 1) blur = absOffset * 2;
+    else if (absOffset <= 2) blur = 2 + (absOffset - 1) * 4;
+    else blur = 6 + (absOffset - 2) * 2;
 
-    // Discrete stacked rendering heights
     let zIndex = 10;
     if (absOffset < 0.5) zIndex = 40;
     else if (absOffset < 1.5) zIndex = 30;
@@ -345,7 +329,7 @@ export default function Services3DCarousel() {
     return { translateX, translateZ, rotateY, scale, opacity, blur, zIndex };
   };
 
-  // Procedural futuristic abstract 3D asset renderers
+  // Card visual renderers
   const renderCardVisual = (type: string, gradient: string, Icon: any) => {
     switch (type) {
       case "code-mesh":
@@ -444,7 +428,6 @@ export default function Services3DCarousel() {
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
         onPointerCancel={handlePointerUp}
-        onMouseEnter={handleMouseEnterStage}
         onMouseLeave={handleMouseLeaveStage}
         style={{
           transform: isDesktop ? `rotateY(${stageTilt.x}deg) rotateX(${stageTilt.y}deg)` : "none",
@@ -452,7 +435,7 @@ export default function Services3DCarousel() {
           transition: isDragging.current ? "none" : "transform 0.6s cubic-bezier(0.16, 1, 0.3, 1)",
           touchAction: "pan-y"
         }}
-        className="relative w-full h-[580px] md:h-[660px] flex items-center justify-center overflow-visible select-none carousel-stage-container cursor-grab active:cursor-grabbing"
+        className="relative w-full h-[580px] md:h-[660px] flex items-center justify-center overflow-visible select-none carousel-stage-container"
       >
         
         {/* Dynamic Glowing Ambient Shadow background */}
@@ -464,28 +447,20 @@ export default function Services3DCarousel() {
         {/* 3D Slide Track */}
         <div className="relative w-full h-full flex items-center justify-center z-10" style={{ transformStyle: "preserve-3d" }}>
           {SERVICES_DATA.map((service, idx) => {
-            
-            // Offset calculation with circular wrap
             let offset = idx - activeIndex;
             const total = SERVICES_DATA.length;
             if (offset < -total / 2) offset += total;
             if (offset > total / 2) offset -= total;
 
             const isActive = idx === activeIndex;
-            const isPrev = offset === -1;
-            const isNext = offset === 1;
-
-            // Compute dynamic progress during horizontal drag gestures with non-inverted direction
             const dragProgress = dragOffset / gapMultiplier;
             const virtualOffset = offset + dragProgress;
 
             const { translateX, translateZ, rotateY, scale, opacity, blur, zIndex } = getCardTransforms(virtualOffset);
 
-            // Active card hover tilt angles
             const cardTiltX = isActive ? activeCardTilt.x : 0;
             const cardTiltY = isActive ? activeCardTilt.y : 0;
 
-            // CSS float animation determination
             const floatClass = isActive 
               ? "animate-float-center" 
               : (offset < 0 ? "animate-float-side-left" : "animate-float-side-right");
@@ -496,14 +471,9 @@ export default function Services3DCarousel() {
                 id={`card-${service.id}`}
                 data-card-index={idx}
                 onClick={(e) => {
-                  // Prevent activation on dragging
                   if (isDragging.current || Math.abs(dragOffset) > 10) return;
-                  if ((e.target as HTMLElement).closest("a") || (e.target as HTMLElement).closest("button")) {
-                    return;
-                  }
-                  if (!isActive) {
-                    setActiveIndex(idx);
-                  }
+                  if ((e.target as HTMLElement).closest("a") || (e.target as HTMLElement).closest("button")) return;
+                  if (!isActive) setActiveIndex(idx);
                 }}
                 animate={{
                   x: translateX,
@@ -531,13 +501,11 @@ export default function Services3DCarousel() {
                     : "bg-white/20 backdrop-blur-[15px] border-white/30 shadow-sm hover:border-slate-400 hover:bg-white/40 hover:shadow-md"
                 }`}
               >
-                {/* Continuous Float Animation Wrapper */}
                 <div 
                   className={`w-full h-full flex flex-col justify-between text-left relative ${floatClass}`}
                   style={{ transformStyle: "preserve-3d" }}
                 >
-                  
-                  {/* Glassmorphic cursor reflection light element */}
+                  {/* Glassmorphic cursor reflection */}
                   {isActive && (
                     <div 
                       className="absolute inset-0 pointer-events-none mix-blend-overlay opacity-60 z-20 transition-opacity duration-300"
@@ -547,7 +515,7 @@ export default function Services3DCarousel() {
                     />
                   )}
 
-                  {/* Glass shimmer diagonal reflection */}
+                  {/* Glass shimmer */}
                   <div className="absolute inset-0 rounded-[32px] overflow-hidden pointer-events-none select-none z-0">
                     <div 
                       className="absolute inset-0 bg-linear-to-tr from-white/0 via-white/10 to-white/20 transform -skew-x-12 translate-x-[-30%] transition-transform duration-700 ease-out"
@@ -555,33 +523,28 @@ export default function Services3DCarousel() {
                         transform: isActive ? `translateX(${(cardTiltX * 2.5) - 15}%) translateY(${cardTiltY * 1.5}%)` : 'translateX(-30%)'
                       }}
                     />
-                    {/* Inner highlighting rim */}
                     <div className="absolute inset-px rounded-[31px] border border-white/30" />
                   </div>
 
-                  {/* Custom Asset Visual Segment (Top 50%) */}
+                  {/* Visual Segment (Top 48%) */}
                   <div className="h-[48%] w-full border-b border-white/20 relative overflow-hidden">
                     {renderCardVisual(service.visualType, service.gradient, service.icon)}
                   </div>
 
-                  {/* Descriptive text block (Bottom 52%) */}
+                  {/* Text block (Bottom 52%) */}
                   <div className="p-5 md:p-6.5 flex-1 flex flex-col justify-between relative z-10">
                     <div>
-                      {/* Subtitle tag */}
                       <span className="font-mono text-[9px] font-black uppercase tracking-widest text-blue-600 block mb-1">
                         {service.subtitle}
                       </span>
-                      {/* Title display */}
                       <h3 className="font-sans text-lg md:text-xl font-extrabold text-slate-900 mb-2 tracking-tight">
                         {service.title}
                       </h3>
-                      {/* Main description details */}
                       <p className="font-sans text-[11.5px] md:text-xs text-slate-600 leading-relaxed max-w-sm">
                         {service.description}
                       </p>
                     </div>
 
-                    {/* Bottom Action Ribbon */}
                     <div className="flex items-center justify-between pt-3.5 border-t border-slate-100/60">
                       <span className="font-sans text-[8px] font-bold text-slate-400">
                         DESIGN SYSTEM
